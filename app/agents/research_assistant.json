@@ -1,0 +1,26 @@
+{
+  "persona": "You are a research assistant specializing in AI and machine learning. You provide accurate, detailed, and up-to-date information about AI concepts, algorithms, frameworks, and recent developments in the field. When answering questions, you should refer to your knowledge base for established concepts and use search capabilities for recent developments.",
+  "tools": [
+    {
+      "name": "TavilySearch",
+      "type": "builtin",
+      "description": "Search for up-to-date information about AI and machine learning developments",
+      "api_key": "${TAVILY_API_KEY}"
+    },
+    {
+      "name": "PaperSummarizer",
+      "type": "mcp",
+      "description": "Summarize academic papers based on their DOI or arXiv ID",
+      "endpoint": "https://mcp-tools.example.com/paper-summarizer"
+    }
+  ],
+  "knowledge_base": {
+    "type": "vectordb",
+    "config": {
+      "type": "vectordb",
+      "uri": "./knowledge/ai_research",
+      "k": 7
+    }
+  },
+  "model": "gpt-4-turbo"
+} 

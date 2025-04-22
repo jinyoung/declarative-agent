@@ -1,0 +1,244 @@
+# Product Requirements Document: JSON-defined Generic Agent Runtime Engine
+
+<context>
+
+# Overview
+이 제품은 LangChain 및 LangGraph 기반으로 동작하는 "제네릭 AI 에이전트 런타임 엔진"입니다. 에이전트 정의를 JSON으로 외부 선언하여, 각 요청 시 해당 정의를 로드하고 해당 에이전트의 페르소나, 툴, 지식 베이스를 구성해 단일 API 엔드포인트로 사용자 질의에 대응하는 시스템입니다. 이는 다양한 에이전트를 쉽게 추가하고 유지보수하며 재사용할 수 있도록 설계된 범용적인 에이전트 호스팅 플랫폼입니다.
+
+이 제품은 다음과 같은 문제를 해결합니다:
+- 매 요청 시 에이전트를 생성할 필요 없이 재사용 가능한 정의 기반으로 즉시 구성 가능
+- 다양한 툴, 프롬프트, 지식베이스 설정을 JSON으로 외부 관리
+- 서비스 로직과 에이전트 정의를 분리하여 유연하고 선언적인 운영 환경 제공
+
+주요 사용자는 AI 기반 응답 시스템을 원하는 서비스 개발자, 시스템 통합 전문가, SaaS 제공자입니다.
+
+# Core Features
+
+### 1. JSON 기반 에이전트 정의 로딩
+- **기능**: `agent_id`에 해당하는 JSON 파일을 불러와 해당 설정대로 에이전트를 동적으로 구성
+- **중요성**: 선언형 설정만으로 다양한 에이전트를 운영할 수 있음
+- **동작 방식**: `.json` 파일에서 페르소나, 툴 목록, 지식 베이스, 모델 등을 파싱하여 LangChain AgentExecutor 구성
+
+### 2. LangChain MCP 툴 실행 지원
+- **기능**: MCP 프로토콜 기반 툴을 JSON에서 선언하고 실행 가능하게 함
+- **중요성**: 외부 툴 서버와의 통합이 쉬워짐 (예: 계산기, 검색기, ERP 연동 등)
+- **동작 방식**: MCP 어댑터(`langchain-mcp-adapters`)를 사용하여 원격 MCP 툴을 LangChain Tool 객체로 wrapping
+
+### 3. 벡터 DB + 그래프 DB 혼합 지식 베이스
+- **기능**: 지식 베이스를 벡터 기반과 그래프 기반 모두 지원
+- **중요성**: 유연한 검색 기반 QA 가능
+- **동작 방식**: FAISS/Chroma 및 Neo4j 드라이버 연동을 통해 LangChain Retriever Tool 구성
+
+### 4. 단일 API 엔드포인트
+- **기능**: `/query` 엔드포인트로 agent_id와 사용자 질의 전달
+- **중요성**: 외부에서 RESTful API로 통합 가능
+- **동작 방식**: FastAPI 또는 Starlette로 비동기 처리 구성. 요청 시 에이전트 구성 후 응답 생성
+
+# User Experience
+
+### User Personas
+- **DevOps 및 플랫폼 엔지니어**: 다양한 에이전트를 하나의 런타임으로 운영하고자 하는 사용자
+- **서비스 개발자**: 각 서비스 상황에 맞는 다양한 프롬프트/툴/지식을 가진 에이전트를 선언적으로 정의하고 싶어하는 사용자
+
+### Key User Flows
+1. 관리자는 JSON 파일을 작성하여 특정 agent_id에 대응시킴
+2. 사용자는 웹에서 `POST /query` API로 `agent_id`와 `query` 전달
+3. 시스템은 해당 에이전트를 구성하고 응답
+
+### UI/UX Considerations
+- 내부 시스템이므로 주 UI는 API 설계이며, 추후 JSON 템플릿 생성기 및 응답 로그 뷰어는 추가 가능
+
+</context>
+
+<PRD>
+
+# Technical Architecture
+
+### System Components
+- **AgentManager**: JSON 파일 로딩, LangChain 객체 조립, 캐시 관리
+- **ToolFactory**: MCP 및 기타 툴을 JSON에서 생성
+- **KnowledgeBaseLoader**: FAISS, Neo4j 등의 지식 소스 구성
+- **API Gateway**: FastAPI 기반 API 엔드포인트 `/query`
+- **Runtime Engine**: LangChain 기반 AgentExecutor 실행
+
+### Data Models
+- **Agent Definition JSON Schema**
+  ```json
+  {
+    "persona": "string",
+    "tools": [ {"name": "string", "type": "builtin"|"mcp", ...} ],
+    "knowledge_base": { "type": "vectordb"|"graph", ... },
+    "model": "gpt-4"|"claude-3"|...
+  }
+  ```
+
+### APIs and Integrations
+- `POST /query`: `{ agent_id: string, query: string }`
+- 통합: OpenAI, Anthropic, LangChain MCP, Neo4j, FAISS
+
+### Infrastructure Requirements
+- Python + FastAPI 기반 API 서버
+- Docker 기반 LangChain 서비스 런타임
+- Neo4j 및 벡터DB 서버 (옵션)
+
+# Development Roadmap
+
+### MVP Requirements
+- JSON 기반 agent 정의 구성 및 로더
+- MCP 툴 실행 (langchain-mcp-adapters)
+- FAISS 기반 Knowledge Tool 연동
+- 단일 API 엔드포인트 FastAPI 구성
+- persona 프롬프트 반영 및 AgentExecutor 동작
+
+### Future Enhancements
+- Neo4j 지식 그래프 쿼리 연동
+- LangGraph 기반 플로우 확장
+- JSON 구성에 validation 및 IDE 도움 기능
+- UI 대시보드: agent 템플릿 생성기, 로그 뷰어 등
+- User authentication 및 quota 제한
+
+# Logical Dependency Chain
+
+### Foundation First
+1. JSON 정의 파서 (`AgentManager`)
+2. LangChain MCP 툴 Wrapper (`ToolFactory`)
+3. 기본 LLM 설정 및 persona 주입 구조
+
+### Early Usability Goal
+4. `/query` 엔드포인트 구성 (FastAPI)
+5. Simple vector DB 검색 QA 툴 구성
+6. AgentExecutor 동작 확인 + 로그 출력
+
+### Expansion
+7. 지식 그래프(N4j) 연결 및 Tool 확장
+8. LangGraph 기반 Flow template 적용
+9. JSON 자동화 에디터 개발
+
+# Risks and Mitigations
+
+### Technical Challenges
+- LangChain 버전 업 시 MCP 툴 어댑터 호환 이슈 발생 가능 → 명시적 버전 관리 및 테스트 자동화
+- 여러 JSON 구성에 따른 검증 필요 → JSON Schema 활용
+
+### MVP 정의 모호성
+- 너무 많은 기능을 넣기보단, "페르소나 + 1개 툴 + 벡터 검색"으로 MVP 범위 고정
+
+### 리소스 부족
+- 에이전트 템플릿 다양성 부족 → 사용자/콘텐츠 확보 후 Crowdsource 모델 확장
+
+# Appendix
+
+### Dependencies & Versions
+```
+langgraph>=0.3.25
+langchain-openai>=0.3.12
+langchain-anthropic>=0.3.10
+langchain>=0.3.23
+langchain-community>=0.3.21
+langchain-mcp-adapters>=0.0.7
+tavily-python>=0.5.4
+python-dotenv>=1.0.1
+aiofiles>=24.1.0
+mypy>=1.11.1
+ruff>=0.6.1
+langgraph-cli[inmem]>=0.1.89 
+
+```
+
+### Sample Implementation
+```
+import json
+from langchain.agents import initialize_agent, AgentType, Tool
+from langchain.llms import OpenAI
+from langchain.memory import ConversationBufferMemory
+
+def load_agent_from_config(agent_id: str):
+    # 1. JSON 파일 읽기
+    with open(f"agents/{agent_id}.json", 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    persona = config.get("persona", "")
+    tools_config = config.get("tools", [])
+    kb_config = config.get("knowledge_base", None)
+    model_name = config.get("model", "gpt-3.5-turbo")
+
+    # 2. 툴 리스트 생성
+    tools = []
+    for tool_cfg in tools_config:
+        name = tool_cfg["name"]
+        ttype = tool_cfg.get("type", "builtin")
+        if ttype == "mcp":
+            # MCP 툴: MCP 서버 엔드포인트에 연결 (Pseudo-code, requires MCP adapter)
+            endpoint = tool_cfg["endpoint"]
+            tool = connect_to_mcp_tool(name, endpoint)  # 가상의 함수: MCP 툴 래퍼 생성
+        elif ttype == "builtin":
+            # 빌트인 툴 예시: Google 검색 API 래퍼
+            if name.lower() == "googlesearch":
+                api_key = tool_cfg.get("api_key", "")
+                tool = create_google_search_tool(api_key)  # 가상의 함수: SerpAPIWrapper 등
+            elif name.lower() == "mathcalculator":
+                tool = create_math_tool()  # 가상의 수학 계산 툴 생성 함수
+            else:
+                tool = create_tool_by_name(name)  # 일반적인 툴 로더
+        else:
+            tool = None
+        if tool:
+            tools.append(tool)
+
+    # 3. 지식 베이스 통합
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    if kb_config:
+        if kb_config["type"] == "vectordb":
+            # 벡터 DB 예시: FAISS index 로드 및 Retriever 생성
+            vectordb = load_vector_db(kb_config["uri"])        # 벡터DB 로드 (가상 함수)
+            retriever = vectordb.as_retriever(search_kwargs={"k": 5})
+            # Retrieval QA 체인을 툴 형태로 추가
+            from langchain.chains import RetrievalQA
+            qa_chain = RetrievalQA.from_chain_type(OpenAI(model_name=model_name), retriever=retriever)
+            kb_tool = Tool(
+                name="KnowledgeBase",
+                func=qa_chain.run,
+                description="질문에 대한 추가 정보를 벡터 DB에서 검색"
+            )
+            tools.append(kb_tool)
+        elif kb_config["type"] == "graph":
+            # 그래프 DB 예시: Neo4j 연결 및 질의 툴 생성
+            graph = connect_to_neo4j(kb_config["uri"], kb_config.get("auth"))
+            def query_graph_db(query: str) -> str:
+                return run_neo4j_query(graph, query)          # 가상의 함수: Neo4j 질의 실행
+            graph_tool = Tool(
+                name="GraphDB",
+                func=query_graph_db,
+                description="지식 그래프에 질의하여 정보 획득"
+            )
+            tools.append(graph_tool)
+        # 다른 지식베이스 유형들도 필요에 따라 구현...
+
+    # 4. LLM 및 에이전트 초기화
+    llm = OpenAI(model_name=model_name, temperature=0)
+    agent_chain = initialize_agent(
+        tools, llm,
+        agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION,  # 대화형+툴 사용 에이전트
+        memory=memory,
+        verbose=True
+    )
+    # 5. 페르소나(System 프롬프트) 설정
+    if persona:
+        # 에이전트의 시스템 메시지 프롬프트에 persona 주입
+        agent_chain.agent.llm_chain.prompt.messages[0].prompt.template = persona
+
+    return agent_chain
+
+# 사용 예시:
+agent = load_agent_from_config("agent1")         # agent1.json 설정으로 에이전트 생성
+response = agent.run("안녕하세요, 이 도시의 관광 명소 알려줘")  # 에이전트 실행
+print(response)
+
+```
+
+### Related Resources
+- [LangChain documentation](https://docs.langchain.com)
+- [LangGraph GitHub](https://github.com/langchain-ai/langgraph)
+- [langchain-mcp-adapters](https://pypi.org/project/langchain-mcp-adapters)
+
+</PRD>
+

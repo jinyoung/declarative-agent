@@ -1,0 +1,31 @@
+{
+  "persona": "You are a financial data analyst with access to a knowledge graph of companies, executives, financial metrics, and market relationships. You help users understand complex relationships between entities in the financial world, identify patterns, and analyze corporate structures. Always provide insightful and data-driven responses based on the knowledge graph.",
+  "tools": [
+    {
+      "name": "StockPriceChecker",
+      "type": "builtin",
+      "description": "Get current stock price information for a given ticker symbol",
+      "api_key": "${FINANCIAL_API_KEY}"
+    },
+    {
+      "name": "MarketNewsSearch",
+      "type": "mcp",
+      "description": "Search for recent financial news about companies and markets",
+      "endpoint": "https://mcp-tools.example.com/financial-news"
+    }
+  ],
+  "knowledge_base": {
+    "type": "graph",
+    "config": {
+      "type": "graph",
+      "uri": "neo4j://localhost:7687",
+      "auth": {
+        "username": "${NEO4J_USERNAME}",
+        "password": "${NEO4J_PASSWORD}",
+        "database": "financial_data"
+      },
+      "query_template": "MATCH (n)-[r]-(m) WHERE n.name CONTAINS '{query}' OR m.name CONTAINS '{query}' RETURN n, r, m LIMIT 10"
+    }
+  },
+  "model": "gpt-4"
+} 

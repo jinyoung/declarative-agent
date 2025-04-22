@@ -1,0 +1,13 @@
+{
+  "persona": "You are a knowledgeable assistant that can answer questions about a specific domain. You have access to a knowledge base that you can search for information.",
+  "knowledge_base": {
+    "type": "vectordb",
+    "config": {
+      "type": "vectordb",
+      "uri": "path/to/vectordb",
+      "index_name": "documents",
+      "k": 5
+    }
+  },
+  "model": "gpt-4"
+} 

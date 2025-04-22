@@ -1,0 +1,113 @@
+{
+  "persona": "You are a helpful customer service agent for TechGadgets, an online electronics retailer. You assist customers with their orders, product questions, shipping inquiries, and returns/refunds.",
+  "tools": [
+    {
+      "name": "OrderLookup",
+      "type": "mcp",
+      "description": "Look up a customer's order information",
+      "endpoint": "https://mcp-tools.example.com/order-lookup"
+    },
+    {
+      "name": "ProductSearch",
+      "type": "builtin",
+      "description": "Search for product information in the catalog"
+    },
+    {
+      "name": "ShippingStatus",
+      "type": "mcp",
+      "description": "Check the status of a shipped order",
+      "endpoint": "https://mcp-tools.example.com/shipping-status"
+    },
+    {
+      "name": "ReturnPolicy",
+      "type": "builtin",
+      "description": "Provide information about return and refund policies"
+    }
+  ],
+  "knowledge_base": {
+    "type": "vectordb",
+    "config": {
+      "type": "vectordb",
+      "uri": "./knowledge/customer_service",
+      "k": 3
+    }
+  },
+  "model": "gpt-4",
+  "flow_template": {
+    "type": "branching",
+    "description": "A branching flow that routes customer queries to specialized handlers based on intent",
+    "nodes": [
+      {
+        "name": "detect_intent",
+        "type": "llm",
+        "prompt": "Analyze the following customer query and determine the primary intent. Classify into one of these categories: 'order', 'product', 'shipping', 'return', or 'other'.\n\nCustomer query: {input}\n\nReturn only the category name without explanation."
+      },
+      {
+        "name": "route_query",
+        "type": "condition",
+        "condition": "The detected intent is 'order'",
+        "targets": {
+          "true": "handle_order",
+          "false": "check_product"
+        }
+      },
+      {
+        "name": "check_product",
+        "type": "condition",
+        "condition": "The detected intent is 'product'",
+        "targets": {
+          "true": "handle_product",
+          "false": "check_shipping"
+        }
+      },
+      {
+        "name": "check_shipping",
+        "type": "condition",
+        "condition": "The detected intent is 'shipping'",
+        "targets": {
+          "true": "handle_shipping",
+          "false": "check_return"
+        }
+      },
+      {
+        "name": "check_return",
+        "type": "condition",
+        "condition": "The detected intent is 'return'",
+        "targets": {
+          "true": "handle_return",
+          "false": "handle_other"
+        }
+      },
+      {
+        "name": "handle_order",
+        "type": "tool",
+        "tool_name": "OrderLookup"
+      },
+      {
+        "name": "handle_product",
+        "type": "tool",
+        "tool_name": "ProductSearch"
+      },
+      {
+        "name": "handle_shipping",
+        "type": "tool",
+        "tool_name": "ShippingStatus"
+      },
+      {
+        "name": "handle_return",
+        "type": "tool",
+        "tool_name": "ReturnPolicy"
+      },
+      {
+        "name": "handle_other",
+        "type": "llm",
+        "prompt": "Respond to the following general customer service question.\n\nCustomer query: {input}\n\nProvide a helpful and friendly response, and direct them to contact customer service via email at support@techgadgets.example.com if you cannot fully address their question."
+      },
+      {
+        "name": "format_response",
+        "type": "llm",
+        "prompt": "Format the following information into a helpful, friendly customer service response:\n\nOriginal customer query: {input}\n\nResponse data: {steps[-1]}\n\nBe sure to address any specific questions in the query and include contact information (support@techgadgets.example.com) if the customer might need further assistance."
+      }
+    ]
+  }
+} 

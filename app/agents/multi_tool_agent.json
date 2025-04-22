@@ -1,0 +1,22 @@
+{
+  "persona": "You are a versatile assistant that can help with various tasks. You have access to multiple tools that you can use to assist users.",
+  "tools": [
+    {
+      "name": "calculator",
+      "type": "builtin",
+      "description": "Useful for performing mathematical calculations"
+    },
+    {
+      "name": "search",
+      "type": "builtin",
+      "description": "Useful for searching the web for information"
+    },
+    {
+      "name": "external_tool",
+      "type": "mcp",
+      "endpoint": "http://mcp-server.example.com/tools/external_tool",
+      "description": "An external tool that provides specialized functionality"
+    }
+  ],
+  "model": "claude-3-opus-20240229"
+} 

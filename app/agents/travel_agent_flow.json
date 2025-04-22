@@ -1,0 +1,47 @@
+{
+  "persona": "You are a helpful travel assistant that provides information about tourist destinations, travel tips, and local attractions. You should be friendly, informative, and provide concise but comprehensive answers about travel-related questions.",
+  "tools": [
+    {
+      "name": "GoogleSearch",
+      "type": "builtin",
+      "description": "Search for up-to-date information about travel destinations",
+      "api_key": "${GOOGLE_API_KEY}"
+    },
+    {
+      "name": "WeatherTool",
+      "type": "mcp",
+      "description": "Get current weather information for a location",
+      "endpoint": "https://mcp-tools.example.com/weather"
+    }
+  ],
+  "knowledge_base": {
+    "type": "vectordb",
+    "config": {
+      "type": "vectordb",
+      "uri": "./knowledge/travel_guides",
+      "k": 5
+    }
+  },
+  "model": "gpt-4",
+  "flow_template": {
+    "type": "sequential",
+    "description": "A sequential flow for travel queries that first extracts locations, then gets weather, and finally provides travel recommendations",
+    "nodes": [
+      {
+        "name": "extract_location",
+        "type": "llm",
+        "prompt": "Extract the name of the city or location mentioned in the user's query. If no location is mentioned, respond with 'no location'. User query: {input}"
+      },
+      {
+        "name": "get_weather",
+        "type": "tool",
+        "tool_name": "WeatherTool"
+      },
+      {
+        "name": "get_attractions",
+        "type": "llm",
+        "prompt": "Based on the following information, provide travel recommendations for the user's query.\n\nUser query: {input}\n\nWeather information: {steps[1]}\n\nInclude 3-5 attractions or activities suitable for the current weather."
+      }
+    ]
+  }
+} 

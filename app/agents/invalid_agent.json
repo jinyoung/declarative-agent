@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "invalid_tool",
+      "type": "unknown_type",
+      "description": "This tool has an invalid type"
+    }
+  ],
+  "knowledge_base": {
+    "type": "invalid_db",
+    "config": {
+      "type": "vectordb",
+      "uri": "path/to/vectordb"
+    }
+  },
+  "model": "gpt-4"
+} 

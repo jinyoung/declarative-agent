@@ -13,6 +13,8 @@ Key features:
 - LangGraph-based flow templates for complex agent behaviors
 - Simple API for querying agents
 - Easy extension with new tools and knowledge sources
+- Multi-agent conversations where specialized agents collaborate
+- Continuous conversations with chat history
 
 ## Quick Start
 
@@ -61,7 +63,8 @@ Create a JSON file in the `app/agents` directory:
       "api_key": "${GOOGLE_API_KEY}"
     }
   ],
-  "model": "gpt-4"
+  "model": "gpt-4",
+  "supports_chat": true
 }
 ```
 
@@ -103,7 +106,8 @@ Agents are defined using JSON files with the following structure:
   "model": "gpt-4 | claude-3-opus-20240229",
   "flow_template": {
     // Optional flow template configuration
-  }
+  },
+  "supports_chat": true
 }
 ```
 
@@ -140,6 +144,24 @@ Flow templates allow for more complex agent behaviors:
 }
 ```
 
+#### Multi-Agent Flow Templates
+
+For multi-agent flows, use the special `multi_agent` flow type:
+
+```json
+"flow_template": {
+  "type": "multi_agent",
+  "description": "A flow that coordinates multiple specialized agents",
+  "config": {
+    "persona": "You are a helpful coordinator that can call multiple expert agents...",
+    "agent_tools": [
+      "agent_id1",
+      "agent_id2"
+    ]
+  }
+}
+```
+
 ## API Endpoints
 
 ### POST /query
@@ -163,6 +185,80 @@ Submit a query to an agent.
 }
 ```
 
+### POST /chat
+
+Chat with an agent maintaining conversation history.
+
+**Request:**
+```json
+{
+  "agent_id": "name_of_agent_json_file_without_extension",
+  "message": "User message",
+  "session_id": "optional_session_id_for_continuing_conversation"
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Agent's response to the message",
+  "agent_id": "agent_id from the request",
+  "session_id": "session_id for this conversation",
+  "execution_time": 1.23
+}
+```
+
+### POST /multi-agent
+
+Create a multi-agent flow and run an initial query.
+
+**Request:**
+```json
+{
+  "coordinator_id": "id_of_coordinator_agent",
+  "query": "User query",
+  "agent_ids": ["optional_list_of_specific_agent_ids"],
+  "excluded_agent_ids": ["optional_list_of_agents_to_exclude"]
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Coordinated response from multiple agents",
+  "coordinator_id": "coordinator_agent_id",
+  "flow_id": "id_for_future_reference",
+  "execution_time": 1.23
+}
+```
+
+### POST /multi-agent/chat
+
+Continue a conversation with a multi-agent flow.
+
+**Request:**
+```json
+{
+  "flow_id": "id_received_from_multi-agent_endpoint",
+  "message": "User message",
+  "session_id": "optional_session_id_for_continuing_conversation"
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Coordinated response from multiple agents",
+  "flow_id": "flow_id from the request",
+  "session_id": "session_id for this conversation",
+  "execution_time": 1.23
+}
+```
+
+### DELETE /sessions/{session_id}
+
+Delete a chat session.
+
 ## Configuration
 
 The system is configured using environment variables:
@@ -183,6 +279,98 @@ The repository includes several sample agent definitions:
 - `customer_service_flow.json`: Customer service agent with branching flow
 - `research_assistant.json`: AI research assistant with vector knowledge base
 - `knowledge_graph_agent.json`: Financial analyst with graph knowledge base
+- `multi_agent_coordinator.json`: Coordinator agent for multi-agent flows
+- `tech_expert.json`: Technology specialist agent for multi-agent collaboration
+- `finance_expert.json`: Finance specialist agent for multi-agent collaboration
+- `travel_expert.json`: Travel specialist agent for multi-agent collaboration
+
+## Testing Multi-Agent Flows and Chat
+
+### Setting Up the Sample Agents
+
+1. Copy the sample agent files from the `examples` directory to your `app/agents` directory:
+
+```bash
+mkdir -p app/agents
+cp examples/multi_agent_coordinator.json app/agents/
+cp examples/tech_expert.json app/agents/
+cp examples/finance_expert.json app/agents/
+cp examples/travel_expert.json app/agents/
+```
+
+### Testing Single Agent Chat
+
+1. Simple Query
+
+```
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "math_assistant",
+    "query": "calculate this :  1+1?"                                 
+  }'
+```
+
+2. Start a chat session with a specific agent that supports chat:
+
+```bash
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "tech_expert",
+    "message": "What are the key features of Python?"
+  }'
+```
+
+3. Continue the conversation using the `session_id` from the previous response:
+
+```bash
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "tech_expert",
+    "message": "How does it compare to JavaScript?",
+    "session_id": "SESSION_ID_FROM_PREVIOUS_RESPONSE"
+  }'
+```
+
+### Testing Multi-Agent Flow
+
+1. Create a multi-agent flow with a coordinator and run an initial query:
+
+```bash
+curl -X POST "http://localhost:8000/multi-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "coordinator_id": "multi_agent_coordinator",
+    "query": "Which programming language should I learn for finance applications?",
+    "agent_ids": ["tech_expert", "finance_expert"]
+  }'
+```
+
+2. Continue the conversation with the multi-agent flow using the `flow_id` from the previous response:
+
+```bash
+curl -X POST "http://localhost:8000/multi-agent/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flow_id": "FLOW_ID_FROM_PREVIOUS_RESPONSE",
+    "message": "What libraries would I need to learn in that language?"
+  }'
+```
+
+3. For complex queries spanning multiple domains, the coordinator will delegate to the appropriate expert agents:
+
+```bash
+curl -X POST "http://localhost:8000/multi-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "coordinator_id": "multi_agent_coordinator",
+    "query": "I need recommendations for a laptop for software development and some advice on how to budget for it."
+  }'
+```
+
+The coordinator will delegate the technical aspects to the tech expert and the financial aspects to the finance expert, creating a comprehensive response that combines both perspectives.
 
 ## Extending the System
 

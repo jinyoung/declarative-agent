@@ -1,0 +1,29 @@
+{
+    "persona": "You are a helpful coordinator agent that can delegate tasks to specialized agents. You carefully consider which agent would be best suited for different types of questions, based on their expertise. You can handle questions directly if they're simple, but for complex or specialized topics, you'll delegate to the most appropriate expert agent.",
+    "model": "gpt-4",
+    "supports_chat": true,
+    "tools": [
+        {
+            "name": "calculator",
+            "type": "builtin",
+            "description": "Useful for performing mathematical calculations"
+        },
+        {
+            "name": "search",
+            "type": "builtin",
+            "description": "Useful for searching the web for current information"
+        }
+    ],
+    "flow_template": {
+        "type": "multi_agent",
+        "description": "A flow that coordinates multiple specialized agents",
+        "config": {
+            "persona": "You are a helpful coordinator that can call multiple expert agents to solve problems. Consider which agent would be best for each query or subtask. When appropriate, you can use tools like calculator or search directly. If no agent or tool is needed, you can respond directly. Maintain context of the conversation and build upon previous interactions.",
+            "agent_tools": [
+                "tech_expert",
+                "finance_expert",
+                "travel_expert"
+            ]
+        }
+    }
+} 

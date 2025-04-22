@@ -15,6 +15,8 @@ from app.core.schema import AgentDefinition
 from app.core.tool_factory import ToolFactory
 from app.knowledge.knowledge_base_loader import KnowledgeBaseLoader
 from app.core.flow_template_manager import FlowTemplateManager
+from app.core.agent_tool import AgentTool
+from app.core.chat_session import ChatSession
 
 
 class RuntimeEngine:
@@ -27,6 +29,7 @@ class RuntimeEngine:
     - Initializing the appropriate LLM based on the model name
     - Creating and running the agent
     - Optionally creating and running LangGraph flows for complex behaviors
+    - Supporting continuous chat sessions for stateful interactions
     """
     
     def __init__(self):
@@ -168,6 +171,76 @@ class RuntimeEngine:
         
         return FlowExecutor(flow, llm)
     
+    async def create_multi_agent_flow(
+        self, 
+        agent_configs: Dict[str, AgentDefinition],
+        coordinator_agent_id: str,
+        excluded_agent_ids: List[str] = None
+    ) -> Callable:
+        """
+        Create a multi-agent flow where multiple agents can interact.
+        
+        Args:
+            agent_configs: Dictionary mapping agent IDs to agent definitions
+            coordinator_agent_id: ID of the agent to use as the coordinator
+            excluded_agent_ids: Optional list of agent IDs to exclude from the flow
+            
+        Returns:
+            Callable: The compiled multi-agent flow
+            
+        Raises:
+            ValueError: If the coordinator agent doesn't exist or if no agent tools are created
+        """
+        if coordinator_agent_id not in agent_configs:
+            raise ValueError(f"Coordinator agent '{coordinator_agent_id}' not found")
+        
+        # Get coordinator agent definition
+        coordinator_config = agent_configs[coordinator_agent_id]
+        
+        # Initialize LLM for the coordinator
+        coordinator_llm = self._initialize_llm(coordinator_config.model)
+        
+        # Create tools for the coordinator
+        coordinator_tools = self.tool_factory.create_tools(coordinator_config.tools)
+        
+        # Add knowledge base tool if configured for coordinator
+        if coordinator_config.knowledge_base:
+            kb_tool = self.kb_loader.create_knowledge_tool(coordinator_config.knowledge_base)
+            if kb_tool:
+                coordinator_tools.append(kb_tool)
+        
+        # Create agent tools for other agents
+        agent_tools = []
+        excluded_ids = excluded_agent_ids or []
+        excluded_ids.append(coordinator_agent_id)  # Don't include coordinator as a tool
+        
+        # Create agent instances for each agent (except excluded ones)
+        for agent_id, agent_config in agent_configs.items():
+            if agent_id not in excluded_ids:
+                # Create the agent
+                agent = await self.create_agent(agent_config)
+                
+                # Create description for the agent
+                description = f"Expert agent for: {agent_config.persona.split('.')[0]}" if agent_config.persona else None
+                
+                # Create a wrapper that allows the agent to be used as a tool
+                agent_tool = AgentTool(agent, agent_id, description)
+                agent_tools.append(agent_tool)
+        
+        if not agent_tools:
+            raise ValueError("No agent tools were created for the multi-agent flow")
+        
+        # Create a multi-agent flow
+        # Import here to avoid circular imports
+        from app.core.multi_agent_flow import create_default_multi_agent_flow
+        
+        return create_default_multi_agent_flow(
+            llm=coordinator_llm,
+            agent_tools=agent_tools,
+            additional_tools=coordinator_tools,
+            persona=coordinator_config.persona
+        )
+    
     async def run_agent(self, agent: Union[AgentExecutor, Any], query: str) -> str:
         """
         Run the agent with the given query.
@@ -194,6 +267,57 @@ class RuntimeEngine:
             # Log the error and return an error message
             print(f"Error running agent: {str(e)}")
             return f"Error running agent: {str(e)}"
+    
+    async def run_chat_session(self, agent: Union[AgentExecutor, Any], session: ChatSession, query: str) -> str:
+        """
+        Run the agent within a chat session for continuous conversation.
+        
+        Args:
+            agent: The LangChain agent executor or LangGraph flow to run
+            session: The chat session containing conversation history
+            query: The user query to process
+            
+        Returns:
+            str: The agent's response
+            
+        Raises:
+            Exception: If an error occurs during agent execution
+        """
+        try:
+            # Add user message to the session
+            session.add_message("user", query)
+            
+            # For FlowExecutor or other flow-based agents that support chat history
+            if hasattr(agent, 'flow'):
+                # Check if the agent has a specialized chat interface
+                result = await agent.flow.ainvoke({
+                    "input": query,
+                    "chat_history": session.get_history_as_string()
+                })
+                
+                # Extract response from result
+                if isinstance(result, dict):
+                    response = result.get("output", "No output generated")
+                else:
+                    response = str(result)
+            else:
+                # For standard LangChain agents, include history in the query
+                history = session.get_history_as_string()
+                prompt = f"Previous conversation:\n{history}\n\nNew query: {query}"
+                response = await agent.arun(prompt)
+            
+            # Add assistant message to the session
+            session.add_message("assistant", response)
+            return response
+            
+        except Exception as e:
+            # Log the error and return an error message
+            error_msg = f"Error running chat session: {str(e)}"
+            print(error_msg)
+            
+            # Add error message to the session
+            session.add_message("assistant", error_msg)
+            return error_msg
     
     def _initialize_llm(self, model_name: str):
         """

@@ -27,6 +27,7 @@ class FlowTemplateManager:
     - Create different types of flow templates based on configuration
     - Support sequential flows where nodes execute in order
     - Support branching flows where execution path depends on conditions
+    - Support multi-agent flows where multiple agents interact
     """
     
     def __init__(self, logger=None):
@@ -41,6 +42,7 @@ class FlowTemplateManager:
         self.templates = {
             "sequential": self._create_sequential_flow,
             "branching": self._create_branching_flow,
+            "multi_agent": self._create_multi_agent_flow,
         }
     
     def create_flow(self, flow_config: FlowTemplateConfig, tools: List[Any], llm: Any) -> Callable:
@@ -263,4 +265,54 @@ class FlowTemplateManager:
         graph.set_entry_point(nodes[0].name)
         
         # Compile the graph
-        return graph.compile() 
+        return graph.compile()
+    
+    def _create_multi_agent_flow(self, flow_config: FlowTemplateConfig, tools: List[Any], llm: Any) -> Callable:
+        """
+        Create a multi-agent flow where multiple agents can interact.
+        
+        Args:
+            flow_config: Configuration for the multi-agent flow
+            tools: List of tools available to the flow
+            llm: Language model instance to use as the coordinator
+            
+        Returns:
+            Callable: The compiled multi-agent flow
+        """
+        # Import here to avoid circular imports
+        from app.core.multi_agent_flow import create_default_multi_agent_flow
+        from app.core.agent_tool import AgentTool
+        
+        # Get agent tool configurations from the flow config
+        agent_tool_configs = flow_config.config.get("agent_tools", []) if flow_config.config else []
+        
+        # Extract agent tools from the provided tools
+        agent_tools = []
+        regular_tools = []
+        
+        # Sort tools into agent tools and regular tools
+        for tool in tools:
+            if hasattr(tool, "name") and isinstance(tool.name, str) and tool.name.startswith("agent_"):
+                # This appears to be an agent tool
+                agent_tools.append(tool)
+            else:
+                # This is a regular tool
+                regular_tools.append(tool)
+        
+        # If no agent tools were found in the provided tools list, create a warning
+        if not agent_tools:
+            self.logger.warning(
+                "No agent tools found for multi-agent flow. "
+                "Make sure agent tools have been properly wrapped with AgentTool."
+            )
+            
+        # Get persona from config if available
+        persona = flow_config.config.get("persona", None) if flow_config.config else None
+        
+        # Create a multi-agent flow
+        return create_default_multi_agent_flow(
+            llm=llm,
+            agent_tools=agent_tools,
+            additional_tools=regular_tools,
+            persona=persona
+        ) 

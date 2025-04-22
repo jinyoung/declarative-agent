@@ -46,8 +46,8 @@ class FlowNodeConfig(BaseModel):
 
 class FlowTemplateConfig(BaseModel):
     """Configuration for a LangGraph flow template."""
-    type: Literal["sequential", "branching"] = Field("sequential", description="Type of flow template")
-    nodes: List[FlowNodeConfig] = Field(..., description="Nodes in the flow")
+    type: Literal["sequential", "branching", "multi_agent"] = Field("sequential", description="Type of flow template")
+    nodes: Optional[List[FlowNodeConfig]] = Field(None, description="Nodes in the flow (not used for multi_agent)")
     description: Optional[str] = Field(None, description="Description of what the flow does")
     config: Optional[Dict[str, Any]] = Field(None, description="Additional configuration for the flow")
 
@@ -59,6 +59,7 @@ class AgentDefinition(BaseModel):
     knowledge_base: Optional[KnowledgeBaseConfig] = Field(None, description="Knowledge base configuration")
     model: str = Field("gpt-4", description="LLM model to use for the agent")
     flow_template: Optional[FlowTemplateConfig] = Field(None, description="LangGraph flow template configuration")
+    supports_chat: bool = Field(False, description="Whether the agent supports continuous chat sessions")
 
 
 def validate_agent_json(json_data: dict) -> AgentDefinition:
